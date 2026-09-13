@@ -1,11 +1,69 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+// src/pages/index.astro
+import { supabase } from '../lib/supabase.js';
+import '../styles/global.css';
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+// 1. Traemos los productos
+const { data: productos } = await supabase.from('productos').select('*');
+
+// 2. Traemos todos los precios de las tiendas para calcular promedios
+const { data: precios } = await supabase.from('precios_tiendas').select('*');
 ---
 
-<Layout>
-	<Welcome />
-</Layout>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MiCanasta - Comparador de Precios</title>
+  </head>
+  <body class="bg-neutral-950 text-white min-h-screen font-sans p-6 md:p-12">
+    <div class="max-w-6xl mx-auto space-y-8">
+      
+      <div>
+        <h1 class="text-4xl font-extrabold tracking-tight">Compara precios en tiempo real</h1>
+        <p class="text-neutral-400 mt-2">Encuentra las mejores ofertas entre los supermercados más importantes.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {productos && productos.map((prod) => {
+          // Filtramos los precios de este producto específico
+          const preciosProd = precios?.filter(p => p.producto_id === prod.id) || [];
+          
+          // Opcional: calculamos un promedio simple si hay precios numéricos extraídos
+          // (Si tus precios traen texto como "REF 5,60", puedes adaptarlo o mostrar el primero disponible)
+          const primerPrecio = preciosProd.length > 0 ? preciosProd[0].precio_texto : 'Pendiente';
+
+          return (
+            <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-col justify-between hover:border-neutral-700 transition">
+              <div>
+               {prod.imagen_url ? (
+  <div class="w-full h-48 bg-white rounded-lg mb-4 flex items-center justify-center p-2 border border-neutral-800 overflow-hidden">
+    <img src={prod.imagen_url} alt={prod.nombre} class="w-full h-full object-contain" />
+  </div>
+) : (
+  <div class="w-full h-48 bg-neutral-800 rounded-lg mb-4 flex items-center justify-center text-xs text-neutral-500">
+    Sin imagen
+  </div>
+)}
+                <span class="text-xs uppercase tracking-wider bg-neutral-800 text-neutral-300 px-2.5 py-1 rounded-full font-semibold">
+                  {prod.categoria}
+                </span>
+                <h2 class="text-lg font-bold text-white mt-3">{prod.nombre}</h2>
+              </div>
+              
+              <div class="mt-6 pt-4 border-t border-neutral-800 flex items-center justify-between">
+                <div>
+                  <span class="text-xs text-neutral-400 block">Referencia Tienda</span>
+                  <span class="text-lg font-extrabold text-emerald-400">{primerPrecio}</span>
+                </div>
+                <a href={`/producto/${prod.id}`} class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition">
+                  Ver tiendas
+                </a>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+    </div>
+  </body>
+</html>

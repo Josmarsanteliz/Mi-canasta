@@ -1,0 +1,101 @@
+---
+// src/pages/producto/[id].astro
+export const prerender = false;
+
+import { supabase } from '../../lib/supabase.js';
+import '../../styles/global.css'; 
+
+const { id } = Astro.params;
+
+// 1. Buscamos el producto actual (incluyendo su imagen si ya creaste la columna)
+const { data: productoActual, error: errorProducto } = await supabase
+  .from('productos')
+  .select('*')
+  .eq('id', id)
+  .single();
+
+// 2. Buscamos todos los precios y tiendas asociados a este producto
+const { data: preciosTiendas, error: errorPrecios } = await supabase
+  .from('precios_tiendas')
+  .select('*')
+  .eq('producto_id', id);
+
+if (errorProducto || !productoActual) {
+  return Astro.redirect('/404');
+}
+---
+
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Comparador - {productoActual.nombre}</title>
+  </head>
+  <body class="bg-neutral-950 text-white min-h-screen font-sans p-6 md:p-12">
+    <div class="max-w-4xl mx-auto space-y-6">
+      
+      <!-- Botón de Volver -->
+      <div>
+        <a href="/" class="text-xs text-neutral-400 hover:text-white transition flex items-center gap-2">
+          ← Volver al inicio
+        </a>
+      </div>
+
+      <!-- Cabecera con Imagen y Datos -->
+      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 flex flex-col md:flex-row gap-6 items-center">
+        {productoActual.imagen_url ? (
+          <img src={productoActual.imagen_url} alt={productoActual.nombre} class="w-32 h-32 object-cover rounded-lg border border-neutral-800" />
+        ) : (
+          <div class="w-32 h-32 bg-neutral-800 rounded-lg flex items-center justify-center text-xs text-neutral-500 text-center p-2">
+            Sin imagen
+          </div>
+        )}
+        <div class="space-y-2 flex-1">
+          <span class="text-xs uppercase tracking-wider bg-neutral-800 text-neutral-300 px-3 py-1 rounded-full">
+            {productoActual.categoria}
+          </span>
+          <h1 class="text-2xl font-bold text-white">{productoActual.nombre}</h1>
+          <p class="text-xs text-neutral-400">Compara los precios actualizados en tiempo real entre los principales supermercados.</p>
+        </div>
+      </div>
+
+      <!-- Listado de Tiendas / Precios -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {preciosTiendas && preciosTiendas.length > 0 ? (
+          preciosTiendas.map((item) => (
+            <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-col justify-between space-y-4 hover:border-neutral-700 transition">
+              <div>
+                <span class="text-xs uppercase tracking-wider text-neutral-400 font-bold">Tienda</span>
+                <h2 class="text-lg font-bold text-white mt-1">{item.tienda}</h2>
+              </div>
+              
+              <div class="my-2">
+                <span class="text-xs text-neutral-400">Precio encontrado:</span>
+                <p class="text-2xl font-extrabold text-emerald-400 mt-1">
+                  {item.precio_texto || 'No disponible'}
+                </p>
+              </div>
+
+              <div class="pt-4 border-t border-neutral-800 flex flex-col gap-2">
+                {item.url_producto ? (
+                  <a href={item.url_producto} target="_blank" rel="noopener noreferrer" class="text-xs text-blue-400 hover:underline">
+                    Ver en tienda original →
+                  </a>
+                ) : (
+                  <span class="text-xs text-neutral-500">Enlace no disponible</span>
+                )}
+                <span class="text-xs text-neutral-500">
+                  Actualizado: {item.updated_at ? new Date(item.updated_at).toLocaleDateString() : 'Pendiente'}
+                </span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div class="col-span-3 bg-neutral-900 border border-neutral-800 rounded-xl p-6 text-center text-neutral-400">
+            No hay precios registrados para este producto todavía. Asegúrate de insertar los registros en la tabla `precios_tiendas`.
+          </div>
+        )}
+      </div>
+
+    </div>
+  </body>
+</html>
