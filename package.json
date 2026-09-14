@@ -13,6 +13,7 @@
     "scrape": "node scripts/scraper.js"
   },
   "dependencies": {
+    "@astrojs/netlify": "^8.2.5",
     "@astrojs/node": "^11.1.5",
     "@supabase/supabase-js": "^2.112.4",
     "@tailwindcss/vite": "^4.3.3",
