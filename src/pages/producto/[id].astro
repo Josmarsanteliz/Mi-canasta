@@ -1,101 +1,118 @@
 ---
 // src/pages/producto/[id].astro
-export const prerender = false;
-
 import { supabase } from '../../lib/supabase.js';
-import '../../styles/global.css'; 
+import Navbar from '../../components/Navbar.astro';
+import Footer from '../../components/Footer.astro';
+import '../../styles/global.css';
 
 const { id } = Astro.params;
 
-// 1. Buscamos el producto actual (incluyendo su imagen si ya creaste la columna)
-const { data: productoActual, error: errorProducto } = await supabase
+// 1. Obtenemos el producto actual
+const { data: producto } = await supabase
   .from('productos')
   .select('*')
   .eq('id', id)
   .single();
 
-// 2. Buscamos todos los precios y tiendas asociados a este producto
-const { data: preciosTiendas, error: errorPrecios } = await supabase
+if (!producto) {
+  return Astro.redirect('/404');
+}
+
+// 2. Obtenemos los precios asociados a este producto en las diferentes tiendas
+const { data: preciosTiendas } = await supabase
   .from('precios_tiendas')
   .select('*')
   .eq('producto_id', id);
 
-if (errorProducto || !productoActual) {
-  return Astro.redirect('/404');
-}
+// 3. Lógica para limpiar el texto del precio (ej: "REF 1,23" o "$5.60") y encontrar el menor
+const parsePrecio = (texto) => {
+  if (!texto) return 999999;
+  // Extrae los números y la coma/punto decimal
+  const limpio = texto.replace(/[^0-9,.]/g, '').replace(',', '.');
+  return parseFloat(limpio) || 999999;
+};
+
+// Encontramos el número menor entre los precios disponibles
+const menorPrecioNum = preciosTiendas?.length 
+  ? Math.min(...preciosTiendas.map(p => parsePrecio(p.precio_texto)))
+  : 0;
 ---
 
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <title>Comparador - {productoActual.nombre}</title>
+    <title>{producto.nombre} - Comparador MiCanasta</title>
   </head>
-  <body class="bg-neutral-950 text-white min-h-screen font-sans p-6 md:p-12">
-    <div class="max-w-4xl mx-auto space-y-6">
-      
-      <!-- Botón de Volver -->
-      <div>
-        <a href="/" class="text-xs text-neutral-400 hover:text-white transition flex items-center gap-2">
-          ← Volver al inicio
-        </a>
-      </div>
+  <body class="bg-neutral-950 text-white min-h-screen font-sans flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
+    
+    <Navbar />
 
-      <!-- Cabecera con Imagen y Datos -->
-      <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-6 flex flex-col md:flex-row gap-6 items-center">
-        {productoActual.imagen_url ? (
-          <img src={productoActual.imagen_url} alt={productoActual.nombre} class="w-32 h-32 object-cover rounded-lg border border-neutral-800" />
-        ) : (
-          <div class="w-32 h-32 bg-neutral-800 rounded-lg flex items-center justify-center text-xs text-neutral-500 text-center p-2">
-            Sin imagen
-          </div>
-        )}
-        <div class="space-y-2 flex-1">
-          <span class="text-xs uppercase tracking-wider bg-neutral-800 text-neutral-300 px-3 py-1 rounded-full">
-            {productoActual.categoria}
+    <main class="max-w-4xl mx-auto px-6 py-12 space-y-8 flex-grow w-full">
+      
+      <!-- Cabecera del producto -->
+      <div class="bg-neutral-9{-} border border-neutral-800 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row gap-8 items-center bg-neutral-900">
+        <div class="w-full md:w-1/2 h-64 bg-white rounded-xl flex items-center justify-center p-4 overflow-hidden border border-neutral-800">
+          <img src={producto.imagen_url || '/placeholder.png'} alt={producto.nombre} class="w-full h-full object-contain" />
+        </div>
+        <div class="w-full md:w-1/2 space-y-4">
+          <span class="text-xs uppercase tracking-wider bg-emerald-950 text-emerald-400 px-3 py-1 rounded-full font-semibold border border-emerald-800/50">
+            {producto.categoria}
           </span>
-          <h1 class="text-2xl font-bold text-white">{productoActual.nombre}</h1>
-          <p class="text-xs text-neutral-400">Compara los precios actualizados en tiempo real entre los principales supermercados.</p>
+          <h1 class="text-3xl font-extrabold tracking-tight">{producto.nombre}</h1>
+          <p class="text-neutral-400 text-sm">Compara los precios actuales en tiempo real entre los principales supermercados y ahorra en tu compra.</p>
         </div>
       </div>
 
-      <!-- Listado de Tiendas / Precios -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {preciosTiendas && preciosTiendas.length > 0 ? (
-          preciosTiendas.map((item) => (
-            <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-col justify-between space-y-4 hover:border-neutral-700 transition">
-              <div>
-                <span class="text-xs uppercase tracking-wider text-neutral-400 font-bold">Tienda</span>
-                <h2 class="text-lg font-bold text-white mt-1">{item.tienda}</h2>
-              </div>
-              
-              <div class="my-2">
-                <span class="text-xs text-neutral-400">Precio encontrado:</span>
-                <p class="text-2xl font-extrabold text-emerald-400 mt-1">
-                  {item.precio_texto || 'No disponible'}
-                </p>
-              </div>
+      <!-- Listado comparativo de tiendas -->
+      <div class="space-y-4">
+        <h2 class="text-xl font-bold">Precios por Supermercado</h2>
+        
+        <div class="grid grid-cols-1 gap-4">
+          {preciosTiendas && preciosTiendas.length > 0 ? (
+            preciosTiendas.map((item) => {
+              const esElMasBarato = parsePrecio(item.precio_texto) === menorPrecioNum && menorPrecioNum !== 999999;
 
-              <div class="pt-4 border-t border-neutral-800 flex flex-col gap-2">
-                {item.url_producto ? (
-                  <a href={item.url_producto} target="_blank" rel="noopener noreferrer" class="text-xs text-blue-400 hover:underline">
-                    Ver en tienda original →
-                  </a>
-                ) : (
-                  <span class="text-xs text-neutral-500">Enlace no disponible</span>
-                )}
-                <span class="text-xs text-neutral-500">
-                  Actualizado: {item.updated_at ? new Date(item.updated_at).toLocaleDateString() : 'Pendiente'}
-                </span>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div class="col-span-3 bg-neutral-900 border border-neutral-800 rounded-xl p-6 text-center text-neutral-400">
-            No hay precios registrados para este producto todavía. Asegúrate de insertar los registros en la tabla `precios_tiendas`.
-          </div>
-        )}
+              return (
+                <div class={`border rounded-xl p-5 flex items-center justify-between transition ${esElMasBarato ? 'bg-emerald-950/20 border-emerald-600/80 shadow-lg shadow-emerald-950/50' : 'bg-neutral-900 border-neutral-800'}`}>
+                  
+                  <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-lg bg-neutral-800 flex items-center justify-center font-bold text-lg text-emerald-400 border border-neutral-700">
+                      {item.tienda.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <h3 class="font-bold text-white text-lg">{item.tienda}</h3>
+                        {esElMasBarato && (
+                          <span class="bg-emerald-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider">
+                            Más económico ⚡
+                          </span>
+                        )}
+                      </div>
+                      <span class="text-xs text-neutral-400">Última actualización sincronizada</span>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-6">
+                    <span class={`text-xl font-black ${esElMasBarato ? 'text-emerald-400' : 'text-white'}`}>
+                      {item.precio_texto || 'No disponible'}
+                    </span>
+                    <a href={item.url_producto} target="_blank" rel="noopener noreferrer" class="bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg border border-neutral-700 transition">
+                      Ir a tienda
+                    </a>
+                  </div>
+
+                </div>
+              );
+            })
+          ) : (
+            <p class="text-neutral-500 text-sm">No hay tiendas asociadas con precios registrados para este producto todavía.</p>
+          )}
+        </div>
       </div>
 
-    </div>
+    </main>
+
+    <Footer />
+
   </body>
 </html>

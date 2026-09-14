@@ -1,49 +1,62 @@
 ---
 // src/pages/index.astro
 import { supabase } from '../lib/supabase.js';
+import Navbar from '../components/Navbar.astro';
+import Footer from '../components/Footer.astro';
 import '../styles/global.css';
 
 // 1. Traemos los productos
 const { data: productos } = await supabase.from('productos').select('*');
 
-// 2. Traemos todos los precios de las tiendas para calcular promedios
+// 2. Traemos todos los precios de las tiendas
 const { data: precios } = await supabase.from('precios_tiendas').select('*');
 ---
 
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MiCanasta - Comparador de Precios</title>
   </head>
-  <body class="bg-neutral-950 text-white min-h-screen font-sans p-6 md:p-12">
-    <div class="max-w-6xl mx-auto space-y-8">
-      
+  <body class="bg-neutral-950 text-white min-h-screen font-sans flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
+    
+    <!-- Navbar superior -->
+    <Navbar />
+
+    <!-- Contenido Principal -->
+    <main class="max-w-6xl mx-auto px-6 py-12 space-y-8 flex-grow w-full">
       <div>
         <h1 class="text-4xl font-extrabold tracking-tight">Compara precios en tiempo real</h1>
         <p class="text-neutral-400 mt-2">Encuentra las mejores ofertas entre los supermercados más importantes.</p>
       </div>
 
+      <!-- Buscador interactivo -->
+      <div class="relative">
+        <input 
+          type="text" 
+          placeholder="Buscar productos..." 
+          class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 transition shadow-inner"
+        />
+      </div>
+
+      <!-- Grid de Productos -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         {productos && productos.map((prod) => {
-          // Filtramos los precios de este producto específico
           const preciosProd = precios?.filter(p => p.producto_id === prod.id) || [];
-          
-          // Opcional: calculamos un promedio simple si hay precios numéricos extraídos
-          // (Si tus precios traen texto como "REF 5,60", puedes adaptarlo o mostrar el primero disponible)
           const primerPrecio = preciosProd.length > 0 ? preciosProd[0].precio_texto : 'Pendiente';
 
           return (
-            <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-col justify-between hover:border-neutral-700 transition">
+            <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-col justify-between hover:border-neutral-700 transition shadow-lg">
               <div>
-               {prod.imagen_url ? (
-  <div class="w-full h-48 bg-white rounded-lg mb-4 flex items-center justify-center p-2 border border-neutral-800 overflow-hidden">
-    <img src={prod.imagen_url} alt={prod.nombre} class="w-full h-full object-contain" />
-  </div>
-) : (
-  <div class="w-full h-48 bg-neutral-800 rounded-lg mb-4 flex items-center justify-center text-xs text-neutral-500">
-    Sin imagen
-  </div>
-)}
+                {prod.imagen_url ? (
+                  <div class="w-full h-48 bg-white rounded-lg mb-4 flex items-center justify-center p-2 border border-neutral-800 overflow-hidden">
+                    <img src={prod.imagen_url} alt={prod.nombre} class="w-full h-full object-contain" />
+                  </div>
+                ) : (
+                  <div class="w-full h-48 bg-neutral-800 rounded-lg mb-4 flex items-center justify-center text-xs text-neutral-500">
+                    Sin imagen
+                  </div>
+                )}
                 <span class="text-xs uppercase tracking-wider bg-neutral-800 text-neutral-300 px-2.5 py-1 rounded-full font-semibold">
                   {prod.categoria}
                 </span>
@@ -63,7 +76,29 @@ const { data: precios } = await supabase.from('precios_tiendas').select('*');
           );
         })}
       </div>
+    </main>
 
-    </div>
+    <!-- Footer inferior -->
+    <Footer />
+
+    <!-- Script de búsqueda en tiempo real -->
+    <script>
+      const searchInput = document.querySelector('input[placeholder="Buscar productos..."]');
+      const productCards = document.querySelectorAll('.grid > div');
+
+      searchInput?.addEventListener('input', (e) => {
+        const target = e.target as HTMLInputElement;
+        const term = target ? target.value.toLowerCase() : '';
+        productCards.forEach((card) => {
+          const htmlCard = card as HTMLElement;
+          const title = htmlCard.querySelector('h2')?.textContent?.toLowerCase() || '';
+          if (title.includes(term)) {
+            htmlCard.style.display = 'flex';
+          } else {
+            htmlCard.style.display = 'none';
+          }
+        });
+      });
+    </script>
   </body>
 </html>

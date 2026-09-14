@@ -5,6 +5,11 @@ const supabaseUrl = process.env.SUPABASE_URL || 'https://ndpsnygkhnhhkhnzynba.su
 const supabaseKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_uuqoYja99iOrICWXypKsRg_3sc0nT-C';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+const browser = await puppeteer.launch({ 
+  headless: true,
+  args: ['--no-sandbox', '--disable-setuid-sandbox']
+});
+
 async function sincronizarPrecios() {
   console.log('🚀 Conectando con Supabase para obtener los productos y sus tiendas...');
   
