@@ -1,0 +1,113 @@
+---
+---
+
+<!-- Botón o disparador (se queda en el Navbar) -->
+<button 
+  id="abrir-contacto-btn" 
+  class="text-xs text-neutral-400 hover:text-white transition font-medium cursor-pointer flex items-center gap-1.5"
+>
+  <span>💬</span> Contacto / Soporte
+</button>
+
+<!-- Modal de Contacto (teletransportado al body por JS para evitar problemas de CSS con backdrop-blur) -->
+<div id="modal-contacto" class="fixed inset-0 z-[999] hidden bg-black/75 backdrop-blur-sm items-center justify-center p-4">
+  
+  <!-- Caja del Modal -->
+  <div class="relative w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-5">
+    <div class="flex items-center justify-between pb-3 border-b border-neutral-800">
+      <div>
+        <h3 class="text-lg font-bold text-white">¿Tienes una duda o sugerencia?</h3>
+        <p class="text-xs text-neutral-400">Escríbenos y te responderemos lo antes posible.</p>
+      </div>
+      <button id="cerrar-contacto-btn" class="text-neutral-400 hover:text-white text-sm px-2 py-1 cursor-pointer">
+        ✕
+      </button>
+    </div>
+
+    <form id="form-contacto" class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-neutral-300 mb-1.5">Tu nombre</label>
+        <input 
+          type="text" 
+          id="contacto-nombre" 
+          required 
+          placeholder="Ej. Carlos Pérez" 
+          class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition"
+        />
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-neutral-300 mb-1.5">Correo o Teléfono</label>
+        <input 
+          type="text" 
+          id="contacto-dato" 
+          required 
+          placeholder="tucorreo@ejemplo.com o 0414-..." 
+          class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition"
+        />
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-neutral-300 mb-1.5">Mensaje o reporte de precio</label>
+        <textarea 
+          id="contacto-mensaje" 
+          rows="3" 
+          required 
+          placeholder="Cuéntanos qué producto falta o si viste un precio desactualizado..." 
+          class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition resize-none"
+        ></textarea>
+      </div>
+
+      <button 
+        type="submit" 
+        class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-3 rounded-xl transition shadow-lg shadow-emerald-950/50 cursor-pointer"
+      >
+        Enviar mensaje 🚀
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+  const abrirBtn = document.getElementById('abrir-contacto-btn');
+  const cerrarBtn = document.getElementById('cerrar-contacto-btn');
+  const modal = document.getElementById('modal-contacto');
+  const form = document.getElementById('form-contacto') as HTMLFormElement;
+
+  // Mover el modal al body al cargar para escapar del backdrop-blur del header
+  if (modal) {
+    document.body.appendChild(modal);
+  }
+
+  function abrirModal() {
+    modal?.classList.remove('hidden');
+    modal?.classList.add('flex');
+  }
+
+  function cerrarModal() {
+    modal?.classList.add('hidden');
+    modal?.classList.remove('flex');
+  }
+
+  abrirBtn?.addEventListener('click', abrirModal);
+  cerrarBtn?.addEventListener('click', cerrarModal);
+
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      cerrarModal();
+    }
+  });
+
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const nombre = (document.getElementById('contacto-nombre') as HTMLInputElement).value;
+    const dato = (document.getElementById('contacto-dato') as HTMLInputElement).value;
+    const mensaje = (document.getElementById('contacto-mensaje') as HTMLTextAreaElement).value;
+
+    const textoWhatsApp = encodeURIComponent(`Hola, soy ${nombre} (${dato}). ${mensaje}`);
+    window.open(`https://wa.me/584145075777?text=${textoWhatsApp}`, '_blank');
+
+    form.reset();
+    cerrarModal();
+  });
+</script>

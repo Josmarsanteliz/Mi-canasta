@@ -5,11 +5,6 @@ const supabaseUrl = process.env.SUPABASE_URL || 'https://ndpsnygkhnhhkhnzynba.su
 const supabaseKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_uuqoYja99iOrICWXypKsRg_3sc0nT-C';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const browser = await puppeteer.launch({ 
-  headless: true,
-  args: ['--no-sandbox', '--disable-setuid-sandbox']
-});
-
 async function sincronizarPrecios() {
   console.log('🚀 Conectando con Supabase para obtener los productos y sus tiendas...');
   
@@ -22,7 +17,10 @@ async function sincronizarPrecios() {
   }
 
   console.log(`📦 Se encontraron ${productos.length} productos registrados.`);
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({ 
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
 
   for (const producto of productos) {
     console.log(`\n-----------------------------------------`);
@@ -61,13 +59,17 @@ async function sincronizarPrecios() {
         console.log(`  ✔️ [${itemTienda.tienda}]: ${precioTexto}`);
 
         // 3. Actualizamos el precio y la fecha en la tabla relacional
-        await supabase
+        const { error: updateError } = await supabase
           .from('precios_tiendas')
           .update({ 
             precio_texto: precioTexto, 
-            updated_at: new Date() 
+            updated_at: new Date().toISOString() 
           })
           .eq('id', itemTienda.id);
+
+        if (updateError) {
+          console.log(`  ❌ Error al guardar en Supabase:`, updateError.message);
+        }
 
       } catch (err) {
         console.log(`  ❌ [${itemTienda.tienda}]: No se pudo extraer el precio.`);

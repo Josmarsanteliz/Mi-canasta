@@ -1,13 +1,12 @@
 ---
-// src/pages/producto/[id].astro
 import { supabase } from '../../lib/supabase.js';
 import Navbar from '../../components/Navbar.astro';
 import Footer from '../../components/Footer.astro';
+import CarritoFlotante from '../../components/CarritoFlotante.astro';
 import '../../styles/global.css';
 
 const { id } = Astro.params;
 
-// 1. Obtenemos el producto actual
 const { data: producto } = await supabase
   .from('productos')
   .select('*')
@@ -18,21 +17,34 @@ if (!producto) {
   return Astro.redirect('/404');
 }
 
-// 2. Obtenemos los precios asociados a este producto en las diferentes tiendas
 const { data: preciosTiendas } = await supabase
   .from('precios_tiendas')
   .select('*')
   .eq('producto_id', id);
 
-// 3. Lógica para limpiar el texto del precio (ej: "REF 1,23" o "$5.60") y encontrar el menor
-const parsePrecio = (texto) => {
+let tasaDolar = 1;
+try {
+  const resTasa = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+  if (resTasa.ok) {
+    const dataTasa = await resTasa.json();
+    tasaDolar = dataTasa?.promedio || 1;
+  }
+} catch (e) {
+  console.error('No se pudo obtener la tasa del dólar:', e);
+}
+
+const logosTiendas: Record<string, string> = {
+  'Forum': '/logos/Forum.jpg',
+  'Farmadon': '/logos/Farmadon.webp',
+  'TuZonaMarket': '/logos/tuzonamarket.png',
+};
+
+const parsePrecio = (texto: string) => {
   if (!texto) return 999999;
-  // Extrae los números y la coma/punto decimal
   const limpio = texto.replace(/[^0-9,.]/g, '').replace(',', '.');
   return parseFloat(limpio) || 999999;
 };
 
-// Encontramos el número menor entre los precios disponibles
 const menorPrecioNum = preciosTiendas?.length 
   ? Math.min(...preciosTiendas.map(p => parsePrecio(p.precio_texto)))
   : 0;
@@ -48,9 +60,12 @@ const menorPrecioNum = preciosTiendas?.length
     <Navbar />
 
     <main class="max-w-4xl mx-auto px-6 py-12 space-y-8 flex-grow w-full">
-      
+      <a href="/" class="inline-flex items-center text-xs text-neutral-400 hover:text-white transition-colors">
+        ← Volver al inicio
+      </a>
+
       <!-- Cabecera del producto -->
-      <div class="bg-neutral-9{-} border border-neutral-800 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row gap-8 items-center bg-neutral-900">
+      <div class="border border-neutral-800 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row gap-8 items-center bg-neutral-900">
         <div class="w-full md:w-1/2 h-64 bg-white rounded-xl flex items-center justify-center p-4 overflow-hidden border border-neutral-800">
           <img src={producto.imagen_url || '/placeholder.png'} alt={producto.nombre} class="w-full h-full object-contain" />
         </div>
@@ -60,6 +75,18 @@ const menorPrecioNum = preciosTiendas?.length
           </span>
           <h1 class="text-3xl font-extrabold tracking-tight">{producto.nombre}</h1>
           <p class="text-neutral-400 text-sm">Compara los precios actuales en tiempo real entre los principales supermercados y ahorra en tu compra.</p>
+          <p class="text-xs text-neutral-400">
+            Tasa oficial BCV: <span class="text-emerald-400 font-semibold">Bs. {tasaDolar.toFixed(2)}</span>
+          </p>
+
+          <button 
+            data-id={producto.id} 
+            data-nombre={producto.nombre} 
+            data-imagen={producto.imagen_url} 
+            class="agregar-carrito-btn bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-950/50 cursor-pointer flex items-center gap-2"
+          >
+            🛒 + Agregar a mi lista comparativa
+          </button>
         </div>
       </div>
 
@@ -70,14 +97,20 @@ const menorPrecioNum = preciosTiendas?.length
         <div class="grid grid-cols-1 gap-4">
           {preciosTiendas && preciosTiendas.length > 0 ? (
             preciosTiendas.map((item) => {
-              const esElMasBarato = parsePrecio(item.precio_texto) === menorPrecioNum && menorPrecioNum !== 999999;
+              const valorNum = parsePrecio(item.precio_texto);
+              const esElMasBarato = valorNum === menorPrecioNum && menorPrecioNum !== 999999;
+              const precioEnBs = valorNum > 0 ? valorNum * tasaDolar : 0;
 
               return (
                 <div class={`border rounded-xl p-5 flex items-center justify-between transition ${esElMasBarato ? 'bg-emerald-950/20 border-emerald-600/80 shadow-lg shadow-emerald-950/50' : 'bg-neutral-900 border-neutral-800'}`}>
                   
                   <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-lg bg-neutral-800 flex items-center justify-center font-bold text-lg text-emerald-400 border border-neutral-700">
-                      {item.tienda.substring(0, 2).toUpperCase()}
+                    <div class="w-12 h-12 rounded-lg bg-neutral-800 flex items-center justify-center font-bold text-lg text-emerald-400 border border-neutral-700 overflow-hidden p-1">
+                      {logosTiendas[item.tienda] ? (
+                        <img src={logosTiendas[item.tienda]} alt={item.tienda} class="w-full h-full object-contain" />
+                      ) : (
+                        item.tienda.substring(0, 2).toUpperCase()
+                      )}
                     </div>
                     <div>
                       <div class="flex items-center gap-2">
@@ -88,14 +121,31 @@ const menorPrecioNum = preciosTiendas?.length
                           </span>
                         )}
                       </div>
-                      <span class="text-xs text-neutral-400">Última actualización sincronizada</span>
+                      <span class="text-xs text-neutral-400">
+                        {item.updated_at 
+                          ? `Actualizado el ${new Date(item.updated_at).toLocaleString('es-VE', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric', 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}` 
+                          : 'Última actualización reciente'}
+                      </span>
                     </div>
                   </div>
 
                   <div class="flex items-center gap-6">
-                    <span class={`text-xl font-black ${esElMasBarato ? 'text-emerald-400' : 'text-white'}`}>
-                      {item.precio_texto || 'No disponible'}
-                    </span>
+                    <div class="flex flex-col items-end">
+                      <span class={`text-xl font-black ${esElMasBarato ? 'text-emerald-400' : 'text-white'}`}>
+                        {item.precio_texto || 'No disponible'}
+                      </span>
+                      {precioEnBs > 0 && (
+                        <span class="text-xs text-neutral-400 font-medium">
+                          ≈ Bs. {precioEnBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      )}
+                    </div>
                     <a href={item.url_producto} target="_blank" rel="noopener noreferrer" class="bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg border border-neutral-700 transition">
                       Ir a tienda
                     </a>
@@ -113,6 +163,7 @@ const menorPrecioNum = preciosTiendas?.length
     </main>
 
     <Footer />
+    <CarritoFlotante />
 
   </body>
 </html>

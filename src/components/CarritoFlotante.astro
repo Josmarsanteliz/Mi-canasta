@@ -1,0 +1,267 @@
+---
+---
+
+<!-- Barra inferior flotante -->
+<div id="carrito-barra" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-xl hidden">
+  <div class="bg-neutral-900/95 backdrop-blur-md border border-neutral-800 rounded-2xl p-4 shadow-2xl flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold">
+        <span id="carrito-count">0</span>
+      </div>
+      <div>
+        <p class="text-xs text-neutral-400">Tu lista de compras</p>
+        <p id="carrito-mejor-tienda" class="text-sm font-bold text-white">Agrega productos para comparar</p>
+      </div>
+    </div>
+    
+    <button 
+      id="abrir-drawer-btn" 
+      class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-950/50 cursor-pointer"
+    >
+      Comparar Precios →
+    </button>
+  </div>
+</div>
+
+<!-- Modal / Drawer lateral de comparación -->
+<div id="carrito-drawer" class="fixed inset-0 z-50 hidden">
+  <div id="drawer-backdrop" class="fixed inset-0 bg-black/70 backdrop-blur-sm"></div>
+
+  <div class="fixed right-0 top-0 h-full w-full max-w-md bg-neutral-900 border-l border-neutral-800 p-6 flex flex-col justify-between shadow-2xl overflow-y-auto">
+    <div>
+      <div class="flex items-center justify-between pb-4 border-b border-neutral-800">
+        <h2 class="text-lg font-bold text-white">Tu Canasta Comparativa</h2>
+        <button id="cerrar-drawer-btn" class="text-neutral-400 hover:text-white text-sm px-2 py-1 cursor-pointer">
+          ✕ Cerrar
+        </button>
+      </div>
+
+      <!-- Lista de productos añadidos -->
+      <div id="carrito-lista-items" class="mt-4 space-y-3"></div>
+    </div>
+
+    <!-- Resumen por Supermercados -->
+    <div class="mt-6 pt-4 border-t border-neutral-800 space-y-3">
+      <h3 class="text-xs uppercase tracking-wider text-neutral-400 font-semibold">Total estimado por supermercado</h3>
+      <div id="carrito-totales-tiendas" class="space-y-2"></div>
+      <button 
+        id="vaciar-carrito-btn" 
+        class="w-full mt-4 text-xs text-neutral-500 hover:text-red-400 transition py-2 cursor-pointer"
+      >
+        Vaciar lista
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Notificación Toast -->
+<div 
+  id="toast-notificacion" 
+  class="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] bg-neutral-900 border border-emerald-500/50 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 transition-all duration-300 opacity-0 translate-y-4 pointer-events-none"
+>
+  <span class="w-5 h-5 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xs font-bold">✓</span>
+  <span id="toast-mensaje" class="text-xs font-medium">Producto añadido a tu lista</span>
+</div>
+
+<script>
+  import { supabase } from '../lib/supabase.js';
+
+  interface ItemCarrito {
+    id: string;
+    nombre: string;
+    imagen: string;
+    cantidad: number;
+  }
+
+  const STORAGE_KEY = 'micanasta_carrito_v1';
+
+  function obtenerCarrito(): ItemCarrito[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function guardarCarrito(carrito: ItemCarrito[]) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(carrito));
+    actualizarUI();
+  }
+
+  function mostrarToast(nombreProducto: string) {
+    const toast = document.getElementById('toast-notificacion');
+    const mensaje = document.getElementById('toast-mensaje');
+    if (!toast || !mensaje) return;
+
+    mensaje.textContent = `¡${nombreProducto} agregado a tu lista!`;
+    toast.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+    toast.classList.add('opacity-100', 'translate-y-0');
+
+    // Ocultar después de 2.2 segundos
+    setTimeout(() => {
+      toast.classList.remove('opacity-100', 'translate-y-0');
+      toast.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+    }, 2200);
+  }
+
+  function parsePrecioNum(texto: string): number {
+    if (!texto) return 0;
+    const limpio = texto.replace(/[^0-9,.]/g, '').replace(',', '.');
+    return parseFloat(limpio) || 0;
+  }
+
+  async function actualizarUI() {
+    try {
+      const carrito = obtenerCarrito();
+      const barra = document.getElementById('carrito-barra');
+      const countSpan = document.getElementById('carrito-count');
+      const mejorTiendaP = document.getElementById('carrito-mejor-tienda');
+      const listaItemsDiv = document.getElementById('carrito-lista-items');
+      const totalesDiv = document.getElementById('carrito-totales-tiendas');
+
+      if (!barra || !countSpan || !listaItemsDiv || !totalesDiv) return;
+
+      const totalItems = carrito.reduce((acc, item) => acc + item.cantidad, 0);
+
+      if (totalItems === 0) {
+        barra.classList.add('hidden');
+        return;
+      } else {
+        barra.classList.remove('hidden');
+      }
+
+      countSpan.textContent = totalItems.toString();
+
+      listaItemsDiv.innerHTML = carrito.map(item => `
+        <div class="flex items-center justify-between bg-neutral-800/60 border border-neutral-800 p-3 rounded-xl">
+          <div class="flex items-center gap-3">
+            <img src="${item.imagen || '/placeholder.png'}" alt="${item.nombre}" class="w-10 h-10 object-contain bg-white rounded-lg p-1" />
+            <div>
+              <p class="text-sm font-semibold text-white">${item.nombre}</p>
+              <p class="text-xs text-neutral-400">Cant: ${item.cantidad}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button data-id="${item.id}" data-accion="restar" class="btn-cantidad w-7 h-7 bg-neutral-700 hover:bg-neutral-600 rounded-lg text-white font-bold cursor-pointer">-</button>
+            <button data-id="${item.id}" data-accion="sumar" class="btn-cantidad w-7 h-7 bg-neutral-700 hover:bg-neutral-600 rounded-lg text-white font-bold cursor-pointer">+</button>
+            <button data-id="${item.id}" data-accion="eliminar" class="btn-cantidad text-neutral-500 hover:text-red-400 text-xs ml-2 cursor-pointer">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+
+      const productIds = carrito.map(i => i.id);
+      let preciosData: any[] = [];
+
+      if (productIds.length > 0) {
+        const res = await supabase
+          .from('precios_tiendas')
+          .select('*')
+          .in('producto_id', productIds);
+        preciosData = res.data || [];
+      }
+
+      const tiendasMap: Record<string, { total: number; count: number }> = {};
+
+      preciosData?.forEach((p) => {
+        const itemEnCarrito = carrito.find(c => c.id === p.producto_id);
+        const cantidad = itemEnCarrito ? itemEnCarrito.cantidad : 1;
+        const precioNum = parsePrecioNum(p.precio_texto);
+
+        if (!tiendasMap[p.tienda]) {
+          tiendasMap[p.tienda] = { total: 0, count: 0 };
+        }
+        tiendasMap[p.tienda].total += precioNum * cantidad;
+        tiendasMap[p.tienda].count += 1;
+      });
+
+      const tiendasArray = Object.entries(tiendasMap).sort((a, b) => a[1].total - b[1].total);
+
+      if (tiendasArray.length > 0 && mejorTiendaP && totalesDiv) {
+        const [mejorNombre, mejorInfo] = tiendasArray[0];
+        mejorTiendaP.textContent = `Más económico: ${mejorNombre} ($${mejorInfo.total.toFixed(2)})`;
+
+        totalesDiv.innerHTML = tiendasArray.map(([tienda, info], index) => `
+          <div class="flex items-center justify-between p-3 rounded-xl border ${index === 0 ? 'bg-emerald-950/30 border-emerald-600/70' : 'bg-neutral-800/40 border-neutral-800'}">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-white text-sm">${tienda}</span>
+              ${index === 0 ? '<span class="bg-emerald-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full">Mejor opción ⚡</span>' : ''}
+            </div>
+            <span class="font-black text-sm ${index === 0 ? 'text-emerald-400' : 'text-white'}">
+              $${info.total.toFixed(2)}
+            </span>
+          </div>
+        `).join('');
+      } else if (mejorTiendaP && totalesDiv) {
+        mejorTiendaP.textContent = 'Sin precios registrados para esta lista';
+        totalesDiv.innerHTML = '<p class="text-xs text-neutral-500">No hay precios disponibles para los productos seleccionados.</p>';
+      }
+
+      document.querySelectorAll('.btn-cantidad').forEach(btn => {
+        btn.removeEventListener('click', manejarClickCantidad);
+        btn.addEventListener('click', manejarClickCantidad);
+      });
+    } catch (err) {
+      console.error('Error actualizando carrito:', err);
+    }
+  }
+
+  function manejarClickCantidad(e: Event) {
+    const target = e.currentTarget as HTMLElement;
+    const id = target.dataset.id;
+    const accion = target.dataset.accion;
+    let carrito = obtenerCarrito();
+    const index = carrito.findIndex(i => i.id === id);
+
+    if (index > -1) {
+      if (accion === 'sumar') carrito[index].cantidad += 1;
+      if (accion === 'restar') {
+        carrito[index].cantidad -= 1;
+        if (carrito[index].cantidad <= 0) carrito.splice(index, 1);
+      }
+      if (accion === 'eliminar') carrito.splice(index, 1);
+      guardarCarrito(carrito);
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const btn = target.closest('.agregar-carrito-btn') as HTMLElement;
+    if (btn) {
+      const id = btn.dataset.id!;
+      const nombre = btn.dataset.nombre!;
+      const imagen = btn.dataset.imagen || '';
+
+      const carrito = obtenerCarrito();
+      const existing = carrito.find(item => item.id === id);
+
+      if (existing) {
+        existing.cantidad += 1;
+      } else {
+        carrito.push({ id, nombre, imagen, cantidad: 1 });
+      }
+
+      mostrarToast(nombre);
+      guardarCarrito(carrito);
+    }
+  });
+
+  const abrirBtn = document.getElementById('abrir-drawer-btn');
+  const cerrarBtn = document.getElementById('cerrar-drawer-btn');
+  const backdrop = document.getElementById('drawer-backdrop');
+  const drawer = document.getElementById('carrito-drawer');
+  const vaciarBtn = document.getElementById('vaciar-carrito-btn');
+
+  abrirBtn?.addEventListener('click', () => drawer?.classList.remove('hidden'));
+  cerrarBtn?.addEventListener('click', () => drawer?.classList.add('hidden'));
+  backdrop?.addEventListener('click', () => drawer?.classList.add('hidden'));
+
+  vaciarBtn?.addEventListener('click', () => {
+    localStorage.removeItem(STORAGE_KEY);
+    actualizarUI();
+    drawer?.classList.add('hidden');
+  });
+
+  document.addEventListener('DOMContentLoaded', actualizarUI);
+  actualizarUI();
+</script>
