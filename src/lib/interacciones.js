@@ -140,6 +140,7 @@ export async function alternarFavoritoProducto(producto) {
 
   guardarFavoritosLocales(userId, favoritos);
   await sincronizarFavoritoEnSupabase(session, producto, activo);
+  emitirCambioFavorito(producto, activo);
 
   return { requiereInicioSesion: false, activo };
 }
@@ -153,6 +154,38 @@ export async function obtenerIdsFavoritosActuales() {
 
   const favoritos = leerFavoritosLocales(session.user.id);
   return new Set(favoritos.map((item) => String(item.id)));
+}
+
+export async function obtenerFavoritosActuales() {
+  const session = await obtenerSesionActual();
+
+  if (!session?.user) {
+    return [];
+  }
+
+  return leerFavoritosLocales(session.user.id);
+}
+
+function emitirCambioFavorito(producto, activo) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent('micanasta-favorito-change', {
+      detail: {
+        producto: {
+          id: String(producto.id),
+          nombre: producto.nombre,
+          imagen: producto.imagen || producto.imagen_url || '',
+        },
+        activo,
+        mensaje: activo
+          ? `Se añadió "${producto.nombre}" a favoritos.`
+          : `Se quitó "${producto.nombre}" de favoritos.`,
+      },
+    })
+  );
 }
 
 export function obtenerRutaDespuesDeLogin() {

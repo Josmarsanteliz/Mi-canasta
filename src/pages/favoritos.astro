@@ -1,0 +1,428 @@
+---
+import { supabase } from '../lib/supabase.js';
+import Navbar from '../components/Navbar.astro';
+import Footer from '../components/Footer.astro';
+import '../styles/global.css';
+
+const { data: productos } = await supabase.from('productos').select('*');
+const { data: precios } = await supabase.from('precios_tiendas').select('*');
+---
+
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lista de favoritos - MiCanasta</title>
+  </head>
+  <body class="bg-neutral-950 text-white min-h-screen font-sans flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
+    <Navbar />
+
+    <main class="max-w-6xl mx-auto px-6 py-12 flex-grow w-full space-y-8">
+      <section class="space-y-3">
+        <span class="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/40 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-300">
+          Lista personal
+        </span>
+        <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div class="space-y-2 max-w-2xl">
+            <h1 class="text-4xl font-extrabold tracking-tight">Tus favoritos</h1>
+            <p class="text-neutral-400">
+              Guarda aquí los productos que quieres seguir de cerca y vuelve a ellos cuando quieras.
+            </p>
+          </div>
+          <div class="rounded-2xl border border-neutral-800 bg-neutral-900/80 px-4 py-3 text-sm text-neutral-300">
+            <span class="block text-xs uppercase tracking-wider text-neutral-500">Guardados</span>
+            <strong id="favoritos-contador" class="text-emerald-400 text-2xl">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="rounded-3xl border border-neutral-800 bg-neutral-900/70 p-5 md:p-6 shadow-2xl shadow-black/20">
+        <div id="favoritos-estado" class="rounded-2xl border border-dashed border-neutral-700 bg-neutral-950/50 px-6 py-10 text-center text-neutral-400">
+          Cargando tus favoritos...
+        </div>
+        <div 
+          id="favoritos-grid" 
+          class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 hidden"
+          data-productos={JSON.stringify(productos ?? [])}
+          data-precios={JSON.stringify(precios ?? [])}
+        ></div>
+      </section>
+    </main>
+
+    <Footer />
+
+    <script type="module">
+      import { alternarFavoritoProducto, obtenerFavoritosActuales, obtenerSesionActual } from '../lib/interacciones.js';
+
+      const grid = document.getElementById('favoritos-grid');
+      const estado = document.getElementById('favoritos-estado');
+      const contador = document.getElementById('favoritos-contador');
+
+      const productos = JSON.parse(grid?.dataset.productos || '[]');
+      const precios = JSON.parse(grid?.dataset.precios || '[]');
+
+      function parsePrecio(texto) {
+        if (!texto) return 0;
+        const limpio = texto.replace(/[^0-9,.]/g, '').replace(',', '.');
+        return parseFloat(limpio) || 0;
+      }
+
+      function obtenerPrimerPrecio(productoId) {
+        const preciosProducto = precios.filter((item) => String(item.producto_id) === String(productoId));
+        const primerPrecio = preciosProducto[0];
+
+        if (!primerPrecio) {
+          return 'Sin precio disponible';
+        }
+
+        return primerPrecio.precio_texto || 'Sin precio disponible';
+      }
+
+      function obtenerUrlProducto(productoId) {
+        return `/producto/${productoId}`;
+      }
+
+      function pintarVacio(mensaje) {
+        if (!estado || !grid) return;
+
+        estado.textContent = mensaje;
+        estado.classList.remove('hidden');
+        grid.classList.add('hidden');
+        grid.innerHTML = '';
+        if (contador) {
+          contador.textContent = '0';
+        }
+      }
+
+      function crearCardFavorito(producto) {
+        const precioTexto = obtenerPrimerPrecio(producto.id);
+        const precioNum = parsePrecio(precioTexto);
+
+        return `
+          <article class="group rounded-2xl border border-neutral-800 bg-neutral-950/80 p-4 flex flex-col gap-4 transition hover:border-emerald-500/40 hover:-translate-y-0.5">
+            <div class="flex items-start gap-4">
+              <div class="w-20 h-20 shrink-0 rounded-xl bg-white border border-neutral-800 overflow-hidden flex items-center justify-center p-2">
+                ${producto.imagen_url ? `<img src="${producto.imagen_url}" alt="${producto.nombre}" class="w-full h-full object-contain" />` : '<span class="text-[10px] text-neutral-500">Sin imagen</span>'}
+              </div>
+              <div class="min-w-0 flex-1">
+                <span class="inline-flex items-center rounded-full border border-neutral-800 bg-neutral-900 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                  ${producto.categoria || 'Producto'}
+                </span>
+                <h2 class="mt-2 text-base font-bold text-white leading-tight line-clamp-2">${producto.nombre}</h2>
+                <p class="mt-2 text-xs text-neutral-500">Referencia actual</p>
+                <p class="text-sm font-semibold text-emerald-400">${precioTexto}</p>
+                ${precioNum > 0 ? `<p class="text-[11px] text-neutral-500">≈ Bs. ${precioNum.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>` : ''}
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                data-favorito-btn
+                data-id="${producto.id}"
+                data-nombre="${producto.nombre.replaceAll('"', '&quot;')}"
+                data-imagen="${(producto.imagen_url || '').replaceAll('"', '&quot;')}"
+                class="favorito-btn bg-rose-500 hover:bg-rose-400 border border-rose-500 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition shadow-lg shadow-rose-950/30 cursor-pointer flex items-center gap-2"
+                title="Quitar de favoritos"
+                aria-pressed="true"
+              >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.53L12 21.35z" />
+                </svg>
+                En favoritos
+              </button>
+              <a href="${obtenerUrlProducto(producto.id)}" class="inline-flex items-center justify-center rounded-xl border border-neutral-800 bg-neutral-900 px-3.5 py-2 text-xs font-semibold text-neutral-200 transition hover:border-emerald-500/40 hover:text-white">
+                Ver tiendas
+              </a>
+            </div>
+          </article>
+        `;
+      }
+
+      async function renderizarFavoritos() {
+        if (!grid || !estado) return;
+
+        const session = await obtenerSesionActual();
+
+        if (!session?.user) {
+          pintarVacio('Inicia sesión para ver y administrar tus favoritos.');
+          return;
+        }
+
+        const favoritos = await obtenerFavoritosActuales();
+        const favoritosIds = new Set(favoritos.map((item) => String(item.id)));
+        const productosFavoritos = productos.filter((producto) => favoritosIds.has(String(producto.id)));
+
+        if (contador) {
+          contador.textContent = String(productosFavoritos.length);
+        }
+
+        if (productosFavoritos.length === 0) {
+          pintarVacio('Todavía no guardaste productos en favoritos.');
+          return;
+        }
+
+        estado.classList.add('hidden');
+        grid.classList.remove('hidden');
+        grid.innerHTML = productosFavoritos.map((producto) => crearCardFavorito(producto)).join('');
+
+        grid.querySelectorAll('[data-favorito-btn]').forEach((button) => {
+          button.addEventListener('click', async () => {
+            const htmlButton = button;
+            const result = await alternarFavoritoProducto({
+              id: htmlButton.dataset.id,
+              nombre: htmlButton.dataset.nombre,
+              imagen: htmlButton.dataset.imagen,
+            });
+
+            if (result.requiereInicioSesion) {
+              window.dispatchEvent(new Event('micanasta-open-auth-login'));
+              return;
+            }
+
+            await renderizarFavoritos();
+          });
+        });
+      }
+
+      window.addEventListener('micanasta-auth-change', () => {
+        renderizarFavoritos();
+      });
+
+      window.addEventListener('micanasta-favorito-change', () => {
+        renderizarFavoritos();
+      });
+
+      renderizarFavoritos();
+    </script>
+
+    <script type="module">
+      import { supabase } from '../lib/supabase.js';
+      import { iniciarSesionConCorreo, registrarConCorreo, obtenerSesionActual } from '../lib/interacciones.js';
+
+      const loginModal = document.getElementById('auth-login-modal');
+      const registerModal = document.getElementById('auth-register-modal');
+      const loginForm = document.getElementById('auth-login-form');
+      const registerForm = document.getElementById('auth-register-form');
+      const loginError = document.getElementById('auth-login-error');
+      const registerError = document.getElementById('auth-register-error');
+      const registerSuccess = document.getElementById('auth-register-success');
+      const toastNotificacion = document.getElementById('auth-toast-notificacion');
+      const toastMensaje = document.getElementById('auth-toast-mensaje');
+      const toastIcon = document.getElementById('auth-toast-icon');
+      let toastTimeoutId = null;
+
+      function mostrarLogin() {
+        loginModal?.classList.remove('hidden');
+        loginModal?.classList.add('flex');
+      }
+
+      function cerrarLogin() {
+        loginModal?.classList.add('hidden');
+        loginModal?.classList.remove('flex');
+      }
+
+      function mostrarRegistro() {
+        registerModal?.classList.remove('hidden');
+        registerModal?.classList.add('flex');
+      }
+
+      function cerrarRegistro() {
+        registerModal?.classList.add('hidden');
+        registerModal?.classList.remove('flex');
+      }
+
+      function cerrarModalesAuth() {
+        cerrarLogin();
+        cerrarRegistro();
+      }
+
+      function limpiarMensajes() {
+        if (loginError) {
+          loginError.textContent = '';
+          loginError.classList.add('hidden');
+        }
+        if (registerError) {
+          registerError.textContent = '';
+          registerError.classList.add('hidden');
+        }
+        if (registerSuccess) {
+          registerSuccess.textContent = '';
+          registerSuccess.classList.add('hidden');
+        }
+      }
+
+      function mostrarNotificacion(mensaje, tipo = 'success') {
+        if (!toastNotificacion || !toastMensaje || !toastIcon) return;
+
+        if (toastTimeoutId) {
+          window.clearTimeout(toastTimeoutId);
+        }
+
+        const esError = tipo === 'error';
+        toastMensaje.textContent = mensaje;
+        toastIcon.textContent = esError ? '!' : '✓';
+        toastIcon.className = esError
+          ? 'w-5 h-5 rounded-full bg-red-500/20 text-red-300 flex items-center justify-center text-xs font-bold'
+          : 'w-5 h-5 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xs font-bold';
+        
+        toastNotificacion.className = esError
+          ? 'fixed top-5 left-1/2 -translate-x-1/2 z-[1100] bg-neutral-900 border border-red-500/50 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 transition-all duration-300 opacity-0 -translate-y-3 pointer-events-none'
+          : 'fixed top-5 left-1/2 -translate-x-1/2 z-[1100] bg-neutral-900 border border-emerald-500/50 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 transition-all duration-300 opacity-0 -translate-y-3 pointer-events-none';
+
+        requestAnimationFrame(() => {
+          toastNotificacion.classList.remove('opacity-0', '-translate-y-3', 'pointer-events-none');
+          toastNotificacion.classList.add('opacity-100', 'translate-y-0');
+        });
+
+        toastTimeoutId = window.setTimeout(() => {
+          toastNotificacion.classList.remove('opacity-100', 'translate-y-0');
+          toastNotificacion.classList.add('opacity-0', '-translate-y-3', 'pointer-events-none');
+        }, 2600);
+      }
+
+      function traducirErrorAuth(error, contexto) {
+        const mensaje = (error?.message || '').toLowerCase();
+
+        if (mensaje.includes('invalid login credentials') || mensaje.includes('invalid credentials')) {
+          return 'Correo o contraseña incorrectos.';
+        }
+        if (mensaje.includes('email not confirmed')) {
+          return 'Debes confirmar tu correo antes de ingresar.';
+        }
+        if (mensaje.includes('user already registered')) {
+          return 'Este correo ya está registrado.';
+        }
+        if (mensaje.includes('invalid email')) {
+          return 'El correo no tiene un formato válido.';
+        }
+        if (mensaje.includes('weak password') || mensaje.includes('password should be')) {
+          return 'La contraseña es muy débil o no cumple los mínimos.';
+        }
+
+        return contexto === 'login' ? 'No se pudo iniciar sesión.' : 'No se pudo crear la cuenta.';
+      }
+
+      function abrirLogin() {
+        limpiarMensajes();
+        mostrarLogin();
+        cerrarRegistro();
+      }
+
+      function abrirRegistro() {
+        limpiarMensajes();
+        mostrarRegistro();
+        cerrarLogin();
+      }
+
+      document.querySelectorAll('[data-auth-close]').forEach((button) => {
+        button.addEventListener('click', () => {
+          cerrarModalesAuth();
+          limpiarMensajes();
+        });
+      });
+
+      loginModal?.addEventListener('click', (e) => {
+        if (e.target === loginModal) cerrarLogin();
+      });
+
+      registerModal?.addEventListener('click', (e) => {
+        if (e.target === registerModal) cerrarRegistro();
+      });
+
+      document.querySelectorAll('[data-auth-switch]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const mode = button.getAttribute('data-auth-switch');
+          if (mode === 'register') abrirRegistro();
+          else abrirLogin();
+        });
+      });
+
+      window.addEventListener('micanasta-open-auth-login', abrirLogin);
+      window.addEventListener('micanasta-open-auth-register', abrirRegistro);
+
+      // --- INICIO DE SESIÓN ---
+      loginForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        limpiarMensajes();
+
+        const emailInput = document.getElementById('auth-login-email');
+        const passwordInput = document.getElementById('auth-login-password');
+        const email = emailInput ? emailInput.value.trim() : '';
+        const password = passwordInput ? passwordInput.value : '';
+
+        const { error } = await iniciarSesionConCorreo(email, password);
+
+        if (error) {
+          const mensajeError = traducirErrorAuth(error, 'login');
+          if (loginError) {
+            loginError.textContent = mensajeError;
+            loginError.classList.remove('hidden');
+          }
+          mostrarNotificacion(mensajeError, 'error');
+          return;
+        }
+
+        cerrarModalesAuth();
+        mostrarNotificacion('Sesión iniciada correctamente.');
+        window.dispatchEvent(new CustomEvent('micanasta-auth-change', { detail: await obtenerSesionActual() }));
+      });
+
+      // --- REGISTRO ---
+      registerForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        limpiarMensajes();
+
+        const emailInput = document.getElementById('auth-register-email');
+        const passwordInput = document.getElementById('auth-register-password');
+        const passwordConfirmInput = document.getElementById('auth-register-password-confirm');
+        
+        const email = emailInput ? emailInput.value.trim() : '';
+        const password = passwordInput ? passwordInput.value : '';
+        const passwordConfirm = passwordConfirmInput ? passwordConfirmInput.value : '';
+
+        if (password !== passwordConfirm) {
+          const mensajeError = 'Las contraseñas no coinciden.';
+          if (registerError) {
+            registerError.textContent = mensajeError;
+            registerError.classList.remove('hidden');
+          }
+          mostrarNotificacion(mensajeError, 'error');
+          return;
+        }
+
+        const { error, data } = await registrarConCorreo(email, password, window.location.href);
+
+        if (error) {
+          const mensajeError = traducirErrorAuth(error, 'register');
+          if (registerError) {
+            registerError.textContent = mensajeError;
+            registerError.classList.remove('hidden');
+          }
+          mostrarNotificacion(mensajeError, 'error');
+          return;
+        }
+
+        cerrarModalesAuth();
+        mostrarNotificacion('¡Cuenta creada e iniciada sesión con éxito!');
+        window.dispatchEvent(new CustomEvent('micanasta-auth-change', { detail: data?.session || await obtenerSesionActual() }));
+      });
+
+      supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          cerrarModalesAuth();
+          limpiarMensajes();
+        }
+        window.dispatchEvent(new CustomEvent('micanasta-auth-change', { detail: session }));
+      });
+
+      (async () => {
+        const session = await obtenerSesionActual();
+        if (session?.user) {
+          cerrarModalesAuth();
+          limpiarMensajes();
+        }
+      })();
+    </script>
+  </body>
+</html>

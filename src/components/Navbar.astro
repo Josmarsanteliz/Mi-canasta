@@ -23,6 +23,7 @@ import AuthModals from './AuthModals.astro';
       
       <!-- Botón de Contacto -->
       <ModalContacto />
+      <a id="favoritos-link" href="/favoritos" class="hidden hover:text-emerald-400 transition">Lista de favoritos</a>
       <AuthModals />
 
       <div id="google-auth-container" class="border-l border-neutral-800 pl-6">
@@ -42,6 +43,14 @@ import AuthModals from './AuthModals.astro';
   </nav>
 </header>
 
+<div
+  id="favoritos-toast"
+  class="fixed top-20 left-1/2 -translate-x-1/2 z-[1100] bg-neutral-900 border border-emerald-500/50 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 transition-all duration-300 opacity-0 -translate-y-3 pointer-events-none"
+>
+  <span id="favoritos-toast-icon" class="w-5 h-5 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xs font-bold">✓</span>
+  <span id="favoritos-toast-mensaje" class="text-xs font-medium">Se agregó a favoritos.</span>
+</div>
+
 <script>
   import { supabase } from '../lib/supabase.js';
   import { cerrarSesion, obtenerSesionActual } from '../lib/interacciones.js';
@@ -49,11 +58,16 @@ import AuthModals from './AuthModals.astro';
   const authBtn = document.getElementById('google-auth-btn') as HTMLButtonElement | null;
   const authLabel = document.getElementById('google-auth-label');
   const authSubtitle = document.getElementById('google-auth-subtitle');
+  const favoritosLink = document.getElementById('favoritos-link');
+  const favoritosToast = document.getElementById('favoritos-toast');
+  const favoritosToastMensaje = document.getElementById('favoritos-toast-mensaje');
+  const favoritosToastIcon = document.getElementById('favoritos-toast-icon');
+  let favoritosToastTimeoutId = 0;
 
   async function pintarEstadoAuth() {
     const session = await obtenerSesionActual();
 
-    if (!authBtn || !authLabel || !authSubtitle) return;
+    if (!authBtn || !authLabel || !authSubtitle || !favoritosLink) return;
 
     if (session?.user) {
       const nombre = session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email || 'Mi cuenta';
@@ -62,13 +76,43 @@ import AuthModals from './AuthModals.astro';
       authBtn.title = 'Cerrar sesión';
       authBtn.classList.add('border-emerald-500/50', 'bg-emerald-950/40', 'text-emerald-100');
       authBtn.classList.remove('border-neutral-700', 'bg-neutral-900', 'text-neutral-200');
+      favoritosLink.classList.remove('hidden');
     } else {
       authLabel.textContent = 'Ingresa';
       authSubtitle.textContent = 'Guardar favoritos';
       authBtn.title = 'Ingresa';
       authBtn.classList.add('border-neutral-700', 'bg-neutral-900', 'text-neutral-200');
       authBtn.classList.remove('border-emerald-500/50', 'bg-emerald-950/40', 'text-emerald-100');
+      favoritosLink.classList.add('hidden');
     }
+  }
+
+  function mostrarToastFavoritos(mensaje: string, tipo: 'success' | 'error' = 'success') {
+    if (!favoritosToast || !favoritosToastMensaje || !favoritosToastIcon) return;
+
+    if (favoritosToastTimeoutId) {
+      window.clearTimeout(favoritosToastTimeoutId);
+    }
+
+    const esError = tipo === 'error';
+    favoritosToastMensaje.textContent = mensaje;
+    favoritosToastIcon.textContent = esError ? '!' : '✓';
+    favoritosToastIcon.className = esError
+      ? 'w-5 h-5 rounded-full bg-red-500/20 text-red-300 flex items-center justify-center text-xs font-bold'
+      : 'w-5 h-5 rounded-full bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xs font-bold';
+    favoritosToast.className = esError
+      ? 'fixed top-20 left-1/2 -translate-x-1/2 z-[1100] bg-neutral-900 border border-red-500/50 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 transition-all duration-300 opacity-0 -translate-y-3 pointer-events-none'
+      : 'fixed top-20 left-1/2 -translate-x-1/2 z-[1100] bg-neutral-900 border border-emerald-500/50 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 transition-all duration-300 opacity-0 -translate-y-3 pointer-events-none';
+
+    requestAnimationFrame(() => {
+      favoritosToast.classList.remove('opacity-0', '-translate-y-3', 'pointer-events-none');
+      favoritosToast.classList.add('opacity-100', 'translate-y-0');
+    });
+
+    favoritosToastTimeoutId = window.setTimeout(() => {
+      favoritosToast.classList.remove('opacity-100', 'translate-y-0');
+      favoritosToast.classList.add('opacity-0', '-translate-y-3', 'pointer-events-none');
+    }, 2400);
   }
 
   authBtn?.addEventListener('click', async () => {
@@ -83,6 +127,15 @@ import AuthModals from './AuthModals.astro';
 
     window.dispatchEvent(new Event('micanasta-open-auth-login'));
   });
+
+  const manejarCambioFavorito = ((event: Event) => {
+    const detail = (event as CustomEvent<{ mensaje?: string; activo?: boolean }>).detail;
+    if (!detail?.mensaje) return;
+
+    mostrarToastFavoritos(detail.mensaje, detail.activo ? 'success' : 'error');
+  }) as EventListener;
+
+  window.addEventListener('micanasta-favorito-change', manejarCambioFavorito);
 
   supabase.auth.onAuthStateChange((_event, session) => {
     window.dispatchEvent(new CustomEvent('micanasta-auth-change', { detail: session }));
