@@ -1,0 +1,42 @@
+---
+import '../../styles/global.css';
+---
+
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Iniciando sesión...</title>
+  </head>
+  <body class="min-h-screen bg-neutral-950 text-white flex items-center justify-center px-6">
+    <div class="max-w-sm w-full border border-neutral-800 bg-neutral-900 rounded-2xl p-6 text-center shadow-2xl space-y-3">
+      <div class="mx-auto w-12 h-12 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin"></div>
+      <h1 class="text-lg font-bold">Completando inicio de sesión</h1>
+      <p class="text-sm text-neutral-400">Estamos conectando tu correo con MiCanasta.</p>
+    </div>
+
+    <script type="module">
+      import { supabase } from '../../lib/supabase.js';
+      import { obtenerRutaDespuesDeLogin, limpiarRutaDespuesDeLogin } from '../../lib/interacciones.js';
+
+      async function completarSesion() {
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get('code');
+
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+          if (error) {
+            console.error('Error al completar el inicio de sesión:', error);
+          }
+        }
+
+        const destino = obtenerRutaDespuesDeLogin();
+        limpiarRutaDespuesDeLogin();
+        window.location.replace(destino);
+      }
+
+      completarSesion();
+    </script>
+  </body>
+</html>

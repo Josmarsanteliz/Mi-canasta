@@ -125,6 +125,12 @@
       const totalItems = carrito.reduce((acc, item) => acc + item.cantidad, 0);
 
       if (totalItems === 0) {
+        countSpan.textContent = '0';
+        if (mejorTiendaP) {
+          mejorTiendaP.textContent = 'Agrega productos para comparar';
+        }
+        listaItemsDiv.innerHTML = '';
+        totalesDiv.innerHTML = '';
         barra.classList.add('hidden');
         return;
       } else {

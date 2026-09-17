@@ -1,0 +1,290 @@
+---
+---
+
+<div id="auth-modal-root">
+  <div id="auth-login-modal" class="fixed inset-0 z-[1000] hidden bg-black/75 backdrop-blur-sm items-center justify-center p-4">
+    <div class="relative w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-5">
+      <div class="flex items-center justify-between pb-3 border-b border-neutral-800">
+        <div>
+          <h3 class="text-lg font-bold text-white">Inicia sesión</h3>
+          <p class="text-xs text-neutral-400">Accede con tu correo y contraseña para guardar favoritos.</p>
+        </div>
+        <button data-auth-close type="button" class="text-neutral-400 hover:text-white text-sm px-2 py-1 cursor-pointer">✕</button>
+      </div>
+
+      <form id="auth-login-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-neutral-300 mb-1.5">Correo electrónico</label>
+          <input
+            type="email"
+            id="auth-login-email"
+            required
+            autocomplete="email"
+            placeholder="tucorreo@ejemplo.com"
+            class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-neutral-300 mb-1.5">Contraseña</label>
+          <input
+            type="password"
+            id="auth-login-password"
+            required
+            autocomplete="current-password"
+            placeholder="Tu contraseña"
+            class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition"
+          />
+        </div>
+
+        <p id="auth-login-error" class="hidden text-xs text-red-400"></p>
+
+        <button
+          type="submit"
+          class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-3 rounded-xl transition shadow-lg shadow-emerald-950/50 cursor-pointer"
+        >
+          Entrar
+        </button>
+      </form>
+
+      <p class="text-xs text-neutral-400 text-center">
+        ¿No tienes cuenta?
+        <button data-auth-switch="register" type="button" class="text-emerald-400 hover:text-emerald-300 font-semibold">Regístrate</button>
+      </p>
+    </div>
+  </div>
+
+  <div id="auth-register-modal" class="fixed inset-0 z-[1000] hidden bg-black/75 backdrop-blur-sm items-center justify-center p-4">
+    <div class="relative w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-5">
+      <div class="flex items-center justify-between pb-3 border-b border-neutral-800">
+        <div>
+          <h3 class="text-lg font-bold text-white">Crear cuenta</h3>
+          <p class="text-xs text-neutral-400">Regístrate con tu correo y contraseña.</p>
+        </div>
+        <button data-auth-close type="button" class="text-neutral-400 hover:text-white text-sm px-2 py-1 cursor-pointer">✕</button>
+      </div>
+
+      <form id="auth-register-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-neutral-300 mb-1.5">Correo electrónico</label>
+          <input
+            type="email"
+            id="auth-register-email"
+            required
+            autocomplete="email"
+            placeholder="tucorreo@ejemplo.com"
+            class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-neutral-300 mb-1.5">Contraseña</label>
+          <input
+            type="password"
+            id="auth-register-password"
+            required
+            autocomplete="new-password"
+            minlength="6"
+            placeholder="Crea una contraseña"
+            class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-neutral-300 mb-1.5">Confirmar contraseña</label>
+          <input
+            type="password"
+            id="auth-register-password-confirm"
+            required
+            autocomplete="new-password"
+            minlength="6"
+            placeholder="Repite la contraseña"
+            class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition"
+          />
+        </div>
+
+        <p id="auth-register-error" class="hidden text-xs text-red-400"></p>
+        <p id="auth-register-success" class="hidden text-xs text-emerald-400"></p>
+
+        <button
+          type="submit"
+          class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-3 rounded-xl transition shadow-lg shadow-emerald-950/50 cursor-pointer"
+        >
+          Registrarme
+        </button>
+      </form>
+
+      <p class="text-xs text-neutral-400 text-center">
+        ¿Ya tienes cuenta?
+        <button data-auth-switch="login" type="button" class="text-emerald-400 hover:text-emerald-300 font-semibold">Inicia sesión</button>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { supabase } from '../lib/supabase.js';
+  import { iniciarSesionConCorreo, registrarConCorreo, obtenerSesionActual } from '../lib/interacciones.js';
+
+  const authModalRoot = document.getElementById('auth-modal-root');
+  const loginModal = document.getElementById('auth-login-modal');
+  const registerModal = document.getElementById('auth-register-modal');
+  const loginForm = document.getElementById('auth-login-form');
+  const registerForm = document.getElementById('auth-register-form');
+  const loginError = document.getElementById('auth-login-error');
+  const registerError = document.getElementById('auth-register-error');
+  const registerSuccess = document.getElementById('auth-register-success');
+
+  if (authModalRoot) {
+    document.body.appendChild(authModalRoot);
+  }
+
+  function mostrarLogin() {
+    loginModal?.classList.remove('hidden');
+    loginModal?.classList.add('flex');
+  }
+
+  function cerrarLogin() {
+    loginModal?.classList.add('hidden');
+    loginModal?.classList.remove('flex');
+  }
+
+  function mostrarRegistro() {
+    registerModal?.classList.remove('hidden');
+    registerModal?.classList.add('flex');
+  }
+
+  function cerrarRegistro() {
+    registerModal?.classList.add('hidden');
+    registerModal?.classList.remove('flex');
+  }
+
+  function limpiarMensajes() {
+    if (loginError) {
+      loginError.textContent = '';
+      loginError.classList.add('hidden');
+    }
+    if (registerError) {
+      registerError.textContent = '';
+      registerError.classList.add('hidden');
+    }
+    if (registerSuccess) {
+      registerSuccess.textContent = '';
+      registerSuccess.classList.add('hidden');
+    }
+  }
+
+  function abrirLogin() {
+    limpiarMensajes();
+    mostrarLogin();
+    cerrarRegistro();
+  }
+
+  function abrirRegistro() {
+    limpiarMensajes();
+    mostrarRegistro();
+    cerrarLogin();
+  }
+
+  document.querySelectorAll('[data-auth-close]').forEach((button) => {
+    button.addEventListener('click', () => {
+      cerrarLogin();
+      cerrarRegistro();
+      limpiarMensajes();
+    });
+  });
+
+  loginModal?.addEventListener('click', (e) => {
+    if (e.target === loginModal) {
+      cerrarLogin();
+    }
+  });
+
+  registerModal?.addEventListener('click', (e) => {
+    if (e.target === registerModal) {
+      cerrarRegistro();
+    }
+  });
+
+  document.querySelectorAll('[data-auth-switch]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const mode = button.getAttribute('data-auth-switch');
+      if (mode === 'register') {
+        abrirRegistro();
+      } else {
+        abrirLogin();
+      }
+    });
+  });
+
+  window.addEventListener('micanasta-open-auth-login', abrirLogin);
+  window.addEventListener('micanasta-open-auth-register', abrirRegistro);
+
+  loginForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    limpiarMensajes();
+
+    const email = (document.getElementById('auth-login-email') as HTMLInputElement).value.trim();
+    const password = (document.getElementById('auth-login-password') as HTMLInputElement).value;
+
+    const { error } = await iniciarSesionConCorreo(email, password);
+
+    if (error) {
+      if (loginError) {
+        loginError.textContent = error.message || 'No se pudo iniciar sesión.';
+        loginError.classList.remove('hidden');
+      }
+      return;
+    }
+
+    cerrarLogin();
+    window.dispatchEvent(new CustomEvent('micanasta-auth-change', { detail: await obtenerSesionActual() }));
+  });
+
+  registerForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    limpiarMensajes();
+
+    const email = (document.getElementById('auth-register-email') as HTMLInputElement).value.trim();
+    const password = (document.getElementById('auth-register-password') as HTMLInputElement).value;
+    const passwordConfirm = (document.getElementById('auth-register-password-confirm') as HTMLInputElement).value;
+
+    if (password !== passwordConfirm) {
+      if (registerError) {
+        registerError.textContent = 'Las contraseñas no coinciden.';
+        registerError.classList.remove('hidden');
+      }
+      return;
+    }
+
+    const { error, data } = await registrarConCorreo(email, password, window.location.href);
+
+    if (error) {
+      if (registerError) {
+        registerError.textContent = error.message || 'No se pudo crear la cuenta.';
+        registerError.classList.remove('hidden');
+      }
+      return;
+    }
+
+    if (data?.session) {
+      cerrarRegistro();
+      window.dispatchEvent(new CustomEvent('micanasta-auth-change', { detail: data.session }));
+      return;
+    }
+
+    if (registerSuccess) {
+      registerSuccess.textContent = 'Cuenta creada. Revisa tu correo para completar la validación si Supabase te la solicita.';
+      registerSuccess.classList.remove('hidden');
+    }
+  });
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (session?.user) {
+      cerrarModal(loginModal);
+      cerrarModal(registerModal);
+      limpiarMensajes();
+    }
+    window.dispatchEvent(new CustomEvent('micanasta-auth-change', { detail: session }));
+  });
+</script>

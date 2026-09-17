@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase.js';
 import Navbar from '../../components/Navbar.astro';
 import Footer from '../../components/Footer.astro';
 import CarritoFlotante from '../../components/CarritoFlotante.astro';
+import { desglosarPrecioDoble, alternarFavoritoProducto, obtenerIdsFavoritosActuales } from '../../lib/interacciones.js';
 import '../../styles/global.css';
 
 const { id } = Astro.params;
@@ -38,6 +39,15 @@ const logosTiendas: Record<string, string> = {
   'Farmadon': '/logos/Farmadon.webp',
   'TuZonaMarket': '/logos/tuzonamarket.png',
 };
+
+const formatoFechaCaracas = new Intl.DateTimeFormat('es-VE', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'America/Caracas',
+});
 
 const parsePrecio = (texto: string) => {
   if (!texto) return 999999;
@@ -79,14 +89,33 @@ const menorPrecioNum = preciosTiendas?.length
             Tasa oficial BCV: <span class="text-emerald-400 font-semibold">Bs. {tasaDolar.toFixed(2)}</span>
           </p>
 
-          <button 
-            data-id={producto.id} 
-            data-nombre={producto.nombre} 
-            data-imagen={producto.imagen_url} 
-            class="agregar-carrito-btn bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-950/50 cursor-pointer flex items-center gap-2"
-          >
-            🛒 + Agregar a mi lista comparativa
-          </button>
+          <div class="flex flex-wrap items-center gap-2">
+            <button 
+              type="button"
+              data-favorito-btn
+              data-auth-only-favorito
+              data-id={producto.id}
+              data-nombre={producto.nombre}
+              data-imagen={producto.imagen_url || ''}
+              class="favorito-btn hidden bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-lg shadow-black/20 cursor-pointer flex items-center gap-2"
+              title="Guardar en favoritos"
+              aria-pressed="false"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 10-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+              Guardar favorito
+            </button>
+
+            <button 
+              data-id={producto.id} 
+              data-nombre={producto.nombre} 
+              data-imagen={producto.imagen_url} 
+              class="agregar-carrito-btn bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition shadow-lg shadow-emerald-950/50 cursor-pointer flex items-center gap-2"
+            >
+              🛒 + Agregar a mi lista comparativa
+            </button>
+          </div>
         </div>
       </div>
 
@@ -100,6 +129,10 @@ const menorPrecioNum = preciosTiendas?.length
               const valorNum = parsePrecio(item.precio_texto);
               const esElMasBarato = valorNum === menorPrecioNum && menorPrecioNum !== 999999;
               const precioEnBs = valorNum > 0 ? valorNum * tasaDolar : 0;
+              const precioDoble = desglosarPrecioDoble(item.precio_texto);
+              const mostrarPrecioDoble = (item.tienda || '').toLowerCase().includes('tuzona') && precioDoble.tieneDoblePrecio;
+              const precioPrincipalBs = mostrarPrecioDoble ? parsePrecio(String(precioDoble.principal || '')) * tasaDolar : 0;
+              const precioSecundarioBs = mostrarPrecioDoble ? parsePrecio(String(precioDoble.secundario || '')) * tasaDolar : 0;
 
               return (
                 <div class={`border rounded-xl p-5 flex items-center justify-between transition ${esElMasBarato ? 'bg-emerald-950/20 border-emerald-600/80 shadow-lg shadow-emerald-950/50' : 'bg-neutral-900 border-neutral-800'}`}>
@@ -123,13 +156,7 @@ const menorPrecioNum = preciosTiendas?.length
                       </div>
                       <span class="text-xs text-neutral-400">
                         {item.updated_at 
-                          ? `Actualizado el ${new Date(item.updated_at).toLocaleString('es-VE', { 
-                              day: '2-digit', 
-                              month: '2-digit', 
-                              year: 'numeric', 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}` 
+                          ? `Actualizado el ${formatoFechaCaracas.format(new Date(item.updated_at))}` 
                           : 'Última actualización reciente'}
                       </span>
                     </div>
@@ -137,10 +164,31 @@ const menorPrecioNum = preciosTiendas?.length
 
                   <div class="flex items-center gap-6">
                     <div class="flex flex-col items-end">
-                      <span class={`text-xl font-black ${esElMasBarato ? 'text-emerald-400' : 'text-white'}`}>
-                        {item.precio_texto || 'No disponible'}
-                      </span>
-                      {precioEnBs > 0 && (
+                      {mostrarPrecioDoble ? (
+                        <div class="text-right leading-tight">
+                          <span class="block text-[11px] text-neutral-500 font-medium mb-0.5">Primer precio</span>
+                          <span class="block text-sm font-semibold text-neutral-300">{precioDoble.secundario}</span>
+                          {precioSecundarioBs > 0 && (
+                            <span class="block text-[11px] text-neutral-500 font-medium">
+                              ≈ Bs. {precioSecundarioBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          )}
+                          <span class="block mt-1 text-xs text-neutral-400 font-medium">Precio normal</span>
+                          <span class={`block text-xl font-black ${esElMasBarato ? 'text-emerald-400' : 'text-white'}`}>
+                            {precioDoble.principal}
+                          </span>
+                          {precioPrincipalBs > 0 && (
+                            <span class="block text-[11px] text-neutral-400 font-medium">
+                              ≈ Bs. {precioPrincipalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span class={`text-xl font-black ${esElMasBarato ? 'text-emerald-400' : 'text-white'}`}>
+                          {item.precio_texto || 'No disponible'}
+                        </span>
+                      )}
+                      {!mostrarPrecioDoble && precioEnBs > 0 && (
                         <span class="text-xs text-neutral-400 font-medium">
                           ≈ Bs. {precioEnBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
@@ -164,6 +212,64 @@ const menorPrecioNum = preciosTiendas?.length
 
     <Footer />
     <CarritoFlotante />
+
+    <script>
+      import { alternarFavoritoProducto, obtenerIdsFavoritosActuales, obtenerSesionActual } from '../../lib/interacciones.js';
+
+      const favoriteButtons = document.querySelectorAll('[data-favorito-btn]');
+      const favoriteVisibilityButtons = document.querySelectorAll('[data-auth-only-favorito]');
+
+      function pintarFavorito(btn: HTMLButtonElement, activo: boolean) {
+        btn.setAttribute('aria-pressed', String(activo));
+        btn.title = activo ? 'Quitar de favoritos' : 'Guardar en favoritos';
+        btn.classList.toggle('bg-rose-500', activo);
+        btn.classList.toggle('border-rose-500', activo);
+        btn.classList.toggle('text-white', activo);
+        btn.classList.toggle('bg-neutral-900', !activo);
+        btn.classList.toggle('border-neutral-700', !activo);
+        btn.classList.toggle('text-neutral-300', !activo);
+      }
+
+      async function actualizarEstadoFavoritos() {
+        const idsFavoritos = await obtenerIdsFavoritosActuales();
+        favoriteButtons.forEach((button) => {
+          const htmlButton = button as HTMLButtonElement;
+          const esFavorito = idsFavoritos.has(String(htmlButton.dataset.id));
+          pintarFavorito(htmlButton, esFavorito);
+        });
+      }
+
+      async function actualizarVisibilidadFavoritos() {
+        const session = await obtenerSesionActual();
+
+        favoriteVisibilityButtons.forEach((button) => {
+          const htmlButton = button as HTMLButtonElement;
+          htmlButton.classList.toggle('hidden', !session?.user);
+        });
+      }
+
+      favoriteButtons.forEach((button) => {
+        button.addEventListener('click', async () => {
+          const htmlButton = button as HTMLButtonElement;
+          const result = await alternarFavoritoProducto({
+            id: htmlButton.dataset.id,
+            nombre: htmlButton.dataset.nombre,
+            imagen: htmlButton.dataset.imagen,
+          });
+
+          if (result.requiereInicioSesion) return;
+          pintarFavorito(htmlButton, result.activo);
+        });
+      });
+
+      window.addEventListener('micanasta-auth-change', () => {
+        actualizarEstadoFavoritos();
+        actualizarVisibilidadFavoritos();
+      });
+
+      actualizarEstadoFavoritos();
+      actualizarVisibilidadFavoritos();
+    </script>
 
   </body>
 </html>

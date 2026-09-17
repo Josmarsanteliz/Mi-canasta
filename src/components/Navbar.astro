@@ -1,6 +1,7 @@
 ---
 // src/components/Navbar.astro
 import ModalContacto from './ModalContacto.astro';
+import AuthModals from './AuthModals.astro';
 ---
 
 <header class="border-b border-neutral-800 bg-neutral-950/80 backdrop-blur-md sticky top-0 z-50">
@@ -22,20 +23,71 @@ import ModalContacto from './ModalContacto.astro';
       
       <!-- Botón de Contacto -->
       <ModalContacto />
+      <AuthModals />
 
-      <!-- Espacio reservado para el inicio de sesión de Google (próximamente) -->
       <div id="google-auth-container" class="border-l border-neutral-800 pl-6">
-        <button class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs font-semibold px-3.5 py-2 rounded-lg transition flex items-center gap-2 cursor-pointer">
-          <svg class="w-4 h-4" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.1 8.9 5 12 5z"/>
-            <path fill="currentColor" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"/>
-            <path fill="currentColor" d="M5.3 14.7c-.2-.8-.4-1.7-.4-2.7s.2-1.9.4-2.7L1.6 6.4C.6 8.4 0 10.6 0 13s.6 4.6 1.6 6.6l3.7-2.9z"/>
-            <path fill="currentColor" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.1-6.7-5.3L1.6 15.6C3.5 19.4 7.4 23 12 23z"/>
+        <button id="google-auth-btn" class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs font-semibold px-3.5 py-2 rounded-lg transition flex items-center gap-2 cursor-pointer min-w-[170px] justify-center">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+            <path d="m22 6-10 7L2 6" />
           </svg>
-          Ingresar
+          <span class="flex flex-col items-start leading-tight text-left">
+            <span id="google-auth-label">Ingresa</span>
+            <span id="google-auth-subtitle" class="text-[10px] text-neutral-500 font-medium">Guardar favoritos</span>
+          </span>
         </button>
       </div>
     </div>
 
   </nav>
 </header>
+
+<script>
+  import { supabase } from '../lib/supabase.js';
+  import { cerrarSesion, obtenerSesionActual } from '../lib/interacciones.js';
+
+  const authBtn = document.getElementById('google-auth-btn') as HTMLButtonElement | null;
+  const authLabel = document.getElementById('google-auth-label');
+  const authSubtitle = document.getElementById('google-auth-subtitle');
+
+  async function pintarEstadoAuth() {
+    const session = await obtenerSesionActual();
+
+    if (!authBtn || !authLabel || !authSubtitle) return;
+
+    if (session?.user) {
+      const nombre = session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email || 'Mi cuenta';
+      authLabel.textContent = nombre;
+      authSubtitle.textContent = 'Salir de la cuenta';
+      authBtn.title = 'Cerrar sesión';
+      authBtn.classList.add('border-emerald-500/50', 'bg-emerald-950/40', 'text-emerald-100');
+      authBtn.classList.remove('border-neutral-700', 'bg-neutral-900', 'text-neutral-200');
+    } else {
+      authLabel.textContent = 'Ingresa';
+      authSubtitle.textContent = 'Guardar favoritos';
+      authBtn.title = 'Ingresa';
+      authBtn.classList.add('border-neutral-700', 'bg-neutral-900', 'text-neutral-200');
+      authBtn.classList.remove('border-emerald-500/50', 'bg-emerald-950/40', 'text-emerald-100');
+    }
+  }
+
+  authBtn?.addEventListener('click', async () => {
+    const session = await obtenerSesionActual();
+
+    if (session?.user) {
+      await cerrarSesion();
+      window.dispatchEvent(new CustomEvent('micanasta-auth-change', { detail: null }));
+      await pintarEstadoAuth();
+      return;
+    }
+
+    window.dispatchEvent(new Event('micanasta-open-auth-login'));
+  });
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    window.dispatchEvent(new CustomEvent('micanasta-auth-change', { detail: session }));
+    pintarEstadoAuth();
+  });
+
+  pintarEstadoAuth();
+</script>

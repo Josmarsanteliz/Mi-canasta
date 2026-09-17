@@ -37,14 +37,27 @@
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-neutral-300 mb-1.5">Correo o Teléfono</label>
+        <label class="block text-xs font-semibold text-neutral-300 mb-1.5">Correo electrónico</label>
         <input 
-          type="text" 
-          id="contacto-dato" 
-          required 
-          placeholder="tucorreo@ejemplo.com o 0414-..." 
+          type="email" 
+          id="contacto-correo" 
+          placeholder="tucorreo@ejemplo.com" 
+          autocomplete="email"
           class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition"
         />
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-neutral-300 mb-1.5">Número telefónico</label>
+        <input 
+          type="tel" 
+          id="contacto-telefono" 
+          placeholder="0414 123 4567" 
+          autocomplete="tel"
+          inputmode="tel"
+          class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition"
+        />
+        <p class="mt-1 text-[11px] text-neutral-500">Escribe tu correo, tu teléfono o ambos. Al menos uno debe ser válido para poder responderte.</p>
       </div>
 
       <div>
@@ -73,6 +86,22 @@
   const cerrarBtn = document.getElementById('cerrar-contacto-btn');
   const modal = document.getElementById('modal-contacto');
   const form = document.getElementById('form-contacto') as HTMLFormElement;
+  const correoInput = document.getElementById('contacto-correo') as HTMLInputElement;
+  const telefonoInput = document.getElementById('contacto-telefono') as HTMLInputElement;
+
+  function esCorreoValido(valor: string) {
+    const texto = valor.trim();
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(texto);
+  }
+
+  function esTelefonoValido(valor: string) {
+    const texto = valor.trim();
+    return /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$/.test(texto) && /\d{7,}/.test(texto);
+  }
+
+  function hayContactoValido(correo: string, telefono: string) {
+    return esCorreoValido(correo) || esTelefonoValido(telefono);
+  }
 
   // Mover el modal al body al cargar para escapar del backdrop-blur del header
   if (modal) {
@@ -101,13 +130,70 @@
   form?.addEventListener('submit', (e) => {
     e.preventDefault();
     const nombre = (document.getElementById('contacto-nombre') as HTMLInputElement).value;
-    const dato = (document.getElementById('contacto-dato') as HTMLInputElement).value;
+    const correo = correoInput?.value ?? '';
+    const telefono = telefonoInput?.value ?? '';
     const mensaje = (document.getElementById('contacto-mensaje') as HTMLTextAreaElement).value;
 
-    const textoWhatsApp = encodeURIComponent(`Hola, soy ${nombre} (${dato}). ${mensaje}`);
+    const correoLleno = correo.trim() !== '';
+    const telefonoLleno = telefono.trim() !== '';
+    const correoValido = !correoLleno || esCorreoValido(correo);
+    const telefonoValido = !telefonoLleno || esTelefonoValido(telefono);
+    const tieneContacto = hayContactoValido(correo, telefono);
+
+    if (correoInput) {
+      correoInput.setCustomValidity(correoValido ? '' : 'Ingresa un correo electrónico válido.');
+    }
+
+    if (telefonoInput) {
+      telefonoInput.setCustomValidity(telefonoValido ? '' : 'Ingresa un número telefónico válido.');
+    }
+
+    if (!tieneContacto) {
+      correoInput?.setCustomValidity('Ingresa un correo electrónico o un número telefónico.');
+      telefonoInput?.setCustomValidity('Ingresa un correo electrónico o un número telefónico.');
+    }
+
+    if (!correoValido) {
+      correoInput?.reportValidity();
+      return;
+    }
+
+    if (!telefonoValido) {
+      telefonoInput?.reportValidity();
+      return;
+    }
+
+    if (!tieneContacto) {
+      correoInput?.reportValidity();
+      return;
+    }
+
+    correoInput?.setCustomValidity('');
+    telefonoInput?.setCustomValidity('');
+
+    const contacto = correo.trim() || telefono.trim();
+    const textoWhatsApp = encodeURIComponent(`Hola, soy ${nombre} (${contacto}). ${mensaje}`);
     window.open(`https://wa.me/584145075777?text=${textoWhatsApp}`, '_blank');
 
     form.reset();
     cerrarModal();
+  });
+
+  correoInput?.addEventListener('input', () => {
+    if (correoInput.value.trim() === '' || esCorreoValido(correoInput.value)) {
+      correoInput.setCustomValidity('');
+      return;
+    }
+
+    correoInput.setCustomValidity('Ingresa un correo electrónico válido.');
+  });
+
+  telefonoInput?.addEventListener('input', () => {
+    if (telefonoInput.value.trim() === '' || esTelefonoValido(telefonoInput.value)) {
+      telefonoInput.setCustomValidity('');
+      return;
+    }
+
+    telefonoInput.setCustomValidity('Ingresa un número telefónico válido.');
   });
 </script>
